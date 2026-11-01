@@ -1,0 +1,260 @@
+// Rahul BC
+// CSCE 2110 - Foundations of Data Structures
+// Campus Navigation and Meeting Point Search
+// Rahul's Part: graph setup, building lookup, and BFS reachability
+
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <queue>
+#include <string>
+#include <unordered_map>
+
+using namespace std;
+
+class CampusGraph {
+private:
+    vector<string> buildingNames;
+    vector<vector<int>> graph;
+    unordered_map<string, int> buildingIndex;
+
+public:
+    bool addBuilding(string name) {
+        if (buildingIndex.find(name) != buildingIndex.end()) {
+            return false;
+        }
+
+        int index = buildingNames.size();
+        buildingNames.push_back(name);
+        graph.push_back(vector<int>());
+        buildingIndex[name] = index;
+
+        return true;
+    }
+
+    bool addConnection(int first, int second) {
+        if (first < 0 || second < 0 ||
+            first >= buildingNames.size() ||
+            second >= buildingNames.size() ||
+            first == second) {
+            return false;
+        }
+
+        for (int i = 0; i < graph[first].size(); i++) {
+            if (graph[first][i] == second) {
+                return false;
+            }
+        }
+
+        graph[first].push_back(second);
+        graph[second].push_back(first);
+
+        return true;
+    }
+
+    int findBuilding(string name) const {
+        auto found = buildingIndex.find(name);
+
+        if (found == buildingIndex.end()) {
+            return -1;
+        }
+
+        return found->second;
+    }
+
+    bool loadFromFile(string fileName) {
+        ifstream inputFile(fileName);
+
+        if (!inputFile) {
+            cout << "Could not open input file." << endl;
+            return false;
+        }
+
+        buildingNames.clear();
+        graph.clear();
+        buildingIndex.clear();
+
+        int numberOfBuildings;
+        inputFile >> numberOfBuildings;
+        inputFile.ignore();
+
+        for (int i = 0; i < numberOfBuildings; i++) {
+            string name;
+            getline(inputFile, name);
+
+            if (!addBuilding(name)) {
+                cout << "Duplicate building ignored: " << name << endl;
+            }
+        }
+
+        int numberOfConnections;
+        inputFile >> numberOfConnections;
+
+        for (int i = 0; i < numberOfConnections; i++) {
+            int first;
+            int second;
+            inputFile >> first >> second;
+
+            addConnection(first, second);
+        }
+
+        inputFile.close();
+        return true;
+    }
+
+    void bfs(int start, vector<int>& distance, vector<int>& parent) const {
+        distance.assign(buildingNames.size(), -1);
+        parent.assign(buildingNames.size(), -1);
+
+        if (start < 0 || start >= buildingNames.size()) {
+            return;
+        }
+
+        queue<int> q;
+
+        distance[start] = 0;
+        q.push(start);
+
+        while (!q.empty()) {
+            int current = q.front();
+            q.pop();
+
+            for (int i = 0; i < graph[current].size(); i++) {
+                int neighbor = graph[current][i];
+
+                if (distance[neighbor] == -1) {
+                    distance[neighbor] = distance[current] + 1;
+                    parent[neighbor] = current;
+                    q.push(neighbor);
+                }
+            }
+        }
+    }
+
+    void showReachableBuildings(string startBuilding, int maxConnections) const {
+        int start = findBuilding(startBuilding);
+
+        if (start == -1) {
+            cout << "Building not found: " << startBuilding << endl;
+            return;
+        }
+
+        if (maxConnections < 0) {
+            cout << "Connection limit cannot be negative." << endl;
+            return;
+        }
+
+        vector<int> distance;
+        vector<int> parent;
+
+        bfs(start, distance, parent);
+
+        cout << endl;
+        cout << "Buildings reachable from " << startBuilding
+             << " within " << maxConnections << " connections:" << endl;
+
+        bool foundAny = false;
+
+        for (int i = 0; i < buildingNames.size(); i++) {
+            if (i != start &&
+                distance[i] != -1 &&
+                distance[i] <= maxConnections) {
+
+                cout << buildingNames[i] << " - "
+                     << distance[i] << " connection";
+
+                if (distance[i] != 1) {
+                    cout << "s";
+                }
+
+                cout << endl;
+                foundAny = true;
+            }
+        }
+
+        if (!foundAny) {
+            cout << "No other buildings found within that connection limit." << endl;
+        }
+    }
+
+    void showGraph() const {
+        cout << "Campus Graph" << endl;
+        cout << "------------" << endl;
+
+        for (int i = 0; i < buildingNames.size(); i++) {
+            cout << i << ". " << buildingNames[i] << ": ";
+
+            for (int j = 0; j < graph[i].size(); j++) {
+                int neighbor = graph[i][j];
+                cout << buildingNames[neighbor];
+
+                if (j < graph[i].size() - 1) {
+                    cout << ", ";
+                }
+            }
+
+            cout << endl;
+        }
+    }
+
+    int numberOfBuildings() const {
+        return buildingNames.size();
+    }
+
+    string getBuildingName(int index) const {
+        if (index < 0 || index >= buildingNames.size()) {
+            return "";
+        }
+
+        return buildingNames[index];
+    }
+};
+
+int main() {
+    CampusGraph campus;
+
+    if (!campus.loadFromFile("campus_data.txt")) {
+        return 1;
+    }
+
+    cout << "UNT Campus Navigation" << endl;
+    cout << "=====================" << endl;
+    cout << "Buildings loaded: " << campus.numberOfBuildings() << endl;
+    cout << endl;
+
+    campus.showGraph();
+
+    // Normal tests
+    campus.showReachableBuildings("Willis Library", 2);
+    campus.showReachableBuildings("University Union", 1);
+
+    // Edge-case tests
+    cout << endl;
+    campus.showReachableBuildings("Not A Building", 2);
+
+    cout << endl;
+    campus.showReachableBuildings("Willis Library", 0);
+
+    cout << endl;
+    campus.showReachableBuildings("Willis Library", -1);
+
+    // Reusable BFS example for teammates
+    int start = campus.findBuilding("Willis Library");
+
+    vector<int> distance;
+    vector<int> parent;
+
+    campus.bfs(start, distance, parent);
+
+    cout << endl;
+    cout << "Reusable BFS test:" << endl;
+    cout << "Distance from Willis Library to University Union = ";
+
+    int unionIndex = campus.findBuilding("University Union");
+
+    if (unionIndex != -1) {
+        cout << distance[unionIndex] << endl;
+    }
+
+    return 0;
+}
