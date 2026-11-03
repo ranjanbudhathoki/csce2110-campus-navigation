@@ -1,1 +1,101 @@
+// Sushant KC - CSCE 2110 Project 2, Question 2
+// Requires: <algorithm>, <functional>, <limits>, <queue>, <utility>, <vector>.
+// Uses existing private buildingNames, graph, and public findBuilding().
+// Each connection has weight 1 (minimum number of connections).
+
+    // Sushant KC: Dijkstra using unit edge weights (one per connection).
+    // This preserves the assignment's minimum-connections objective.
+    void dijkstra(int start, vector<int>& distance, vector<int>& parent) const {
+        const int INF = numeric_limits<int>::max();
+        int n = static_cast<int>(buildingNames.size());
+        distance.assign(n, INF);
+        parent.assign(n, -1);
+        if (start < 0 || start >= n) return;
+
+        priority_queue<pair<int, int>, vector<pair<int, int>>,
+                       greater<pair<int, int>>> pq;
+        distance[start] = 0;
+        pq.push({0, start});
+        while (!pq.empty()) {
+            int currentDistance = pq.top().first;
+            int current = pq.top().second;
+            pq.pop();
+            if (currentDistance != distance[current]) continue;
+            for (int neighbor : graph[current]) {
+                int candidate = currentDistance + 1;
+                if (candidate < distance[neighbor]) {
+                    distance[neighbor] = candidate;
+                    parent[neighbor] = current;
+                    pq.push({candidate, neighbor});
+                }
+            }
+        }
+    }
+
+    // Rebuild the path from start to destination using Dijkstra parents.
+    vector<int> shortestPath(int start, int destination) const {
+        vector<int> distance, parent, path;
+        if (start < 0 || destination < 0 ||
+            start >= static_cast<int>(buildingNames.size()) ||
+            destination >= static_cast<int>(buildingNames.size())) return path;
+        dijkstra(start, distance, parent);
+        if (distance[destination] == numeric_limits<int>::max()) return path;
+        for (int at = destination; at != -1; at = parent[at]) {
+            path.push_back(at);
+        }
+        reverse(path.begin(), path.end());
+        return path;
+    }
+
+    // Sushant KC: Question 2. Compare A->B->C->D with A->C->B->D.
+    // Locations B and C may be visited in either order.
+    void showShortestPathThroughTwoStops(const string& startName,
+                                         const string& stopBName,
+                                         const string& stopCName,
+                                         const string& destinationName) const {
+        int a = findBuilding(startName);
+        int b = findBuilding(stopBName);
+        int c = findBuilding(stopCName);
+        int d = findBuilding(destinationName);
+        if (a == -1 || b == -1 || c == -1 || d == -1) {
+            cout << "Building not found:";
+            if (a == -1) cout << " " << startName;
+            if (b == -1) cout << " " << stopBName;
+            if (c == -1) cout << " " << stopCName;
+            if (d == -1) cout << " " << destinationName;
+            cout << endl;
+            return;
+        }
+        auto makeRoute = [this](const vector<int>& stops) {
+            vector<int> result;
+            for (size_t i = 1; i < stops.size(); ++i) {
+                vector<int> segment = shortestPath(stops[i-1], stops[i]);
+                if (segment.empty()) return vector<int>{};
+                if (result.empty()) result = segment;
+                else result.insert(result.end(), segment.begin() + 1, segment.end());
+            }
+            return result;
+        };
+        vector<int> first = makeRoute({a, b, c, d});
+        vector<int> second = makeRoute({a, c, b, d});
+        if (first.empty() && second.empty()) {
+            cout << "No route exists through both required stops." << endl;
+            return;
+        }
+        // On a tie, prefer the order B then C.
+        const vector<int>& best = (first.empty() ||
+            (!second.empty() && second.size() < first.size())) ? second : first;
+        cout << "Shortest route through " << stopBName << " and " << stopCName << ":" << endl;
+        for (size_t i = 0; i < best.size(); ++i) {
+            if (i) cout << " -> ";
+            cout << buildingNames[best[i]];
+        }
+        cout << endl << "Total connections: " << (best.size() - 1) << endl;
+    }
+
+
+// Add this call inside the existing main() after loading college_map.txt:
+// campus.showShortestPathThroughTwoStops(
+//     "Willis_Library", "Music_Building",
+//     "Chemistry_Building", "Science_Research_Building");
 
