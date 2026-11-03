@@ -1,0 +1,644 @@
+// Rahul BC, Sushant KC, and Ranjan Budhathoki
+// CSCE 2110 - Foundations of Data Structures
+// Campus Navigation and Meeting Point Search
+
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <queue>
+#include <algorithm>
+#include <functional>
+#include <limits>
+#include <utility>
+#include <string>
+#include <unordered_map>
+
+using namespace std;
+
+class CampusGraph {
+private:
+    vector<string> buildingNames;
+    vector<vector<int>> graph;
+    unordered_map<string, int> buildingIndex;
+
+public:
+    bool addBuilding(string name) {
+        if (buildingIndex.find(name) != buildingIndex.end()) {
+            return false;
+        }
+
+        int index = buildingNames.size();
+        buildingNames.push_back(name);
+        graph.push_back(vector<int>());
+        buildingIndex[name] = index;
+
+        return true;
+    }
+
+    bool addConnection(int first, int second) {
+        if (first < 0 || second < 0 ||
+            first >= buildingNames.size() ||
+            second >= buildingNames.size() ||
+            first == second) {
+            return false;
+        }
+
+        for (int i = 0; i < graph[first].size(); i++) {
+            if (graph[first][i] == second) {
+                return false;
+            }
+        }
+
+        graph[first].push_back(second);
+        graph[second].push_back(first);
+
+        return true;
+    }
+
+    int findBuilding(string name) const {
+        auto found = buildingIndex.find(name);
+
+        if (found == buildingIndex.end()) {
+            return -1;
+        }
+
+        return found->second;
+    }
+
+    bool loadFromFile(string fileName) {
+        ifstream inputFile(fileName);
+
+        if (!inputFile) {
+            cout << "Could not open input file." << endl;
+            return false;
+        }
+
+        buildingNames.clear();
+        graph.clear();
+        buildingIndex.clear();
+
+        string section;
+        string line;
+
+        while (inputFile >> section) {
+            if (section == "BUILDINGS") {
+                while (inputFile >> line && line != "EDGES") {
+                    addBuilding(line);
+                }
+
+                if (line != "EDGES") {
+                    cout << "Missing EDGES section." << endl;
+                    return false;
+                }
+
+                string first;
+                string second;
+
+                while (inputFile >> first >> second) {
+                    int firstIndex = findBuilding(first);
+                    int secondIndex = findBuilding(second);
+
+                    if (firstIndex == -1 || secondIndex == -1) {
+                        cout << "Unknown building in connection: "
+                            << first << " " << second << endl;
+                        continue;
+                    }
+
+                    addConnection(firstIndex, secondIndex);
+                }
+            }
+        }
+
+        inputFile.close();
+
+        if (buildingNames.empty()) {
+            cout << "No buildings were loaded." << endl;
+            return false;
+        }
+
+        return true;
+    }
+
+    void bfs(int start, vector<int>& distance, vector<int>& parent) const {
+        distance.assign(buildingNames.size(), -1);
+        parent.assign(buildingNames.size(), -1);
+
+        if (start < 0 || start >= buildingNames.size()) {
+            return;
+        }
+
+        queue<int> q;
+
+        distance[start] = 0;
+        q.push(start);
+
+        while (!q.empty()) {
+            int current = q.front();
+            q.pop();
+
+            for (int i = 0; i < graph[current].size(); i++) {
+                int neighbor = graph[current][i];
+
+                if (distance[neighbor] == -1) {
+                    distance[neighbor] = distance[current] + 1;
+                    parent[neighbor] = current;
+                    q.push(neighbor);
+                }
+            }
+        }
+    }
+
+    void showReachableBuildings(string startBuilding, int maxConnections) const {
+        int start = findBuilding(startBuilding);
+
+        if (start == -1) {
+            cout << "Building not found: " << startBuilding << endl;
+            return;
+        }
+
+        if (maxConnections < 0) {
+            cout << "Connection limit cannot be negative." << endl;
+            return;
+        }
+
+        vector<int> distance;
+        vector<int> parent;
+
+        bfs(start, distance, parent);
+
+        cout << endl;
+        cout << "Buildings reachable from " << startBuilding
+            << " within " << maxConnections << " connections:" << endl;
+
+        bool foundAny = false;
+
+        for (int i = 0; i < buildingNames.size(); i++) {
+            if (i != start &&
+                distance[i] != -1 &&
+                distance[i] <= maxConnections) {
+
+                cout << buildingNames[i] << " - "
+                    << distance[i] << " connection";
+
+                if (distance[i] != 1) {
+                    cout << "s";
+                }
+
+                cout << endl;
+                foundAny = true;
+            }
+        }
+
+        if (!foundAny) {
+            cout << "No other buildings found within that connection limit." << endl;
+        }
+    }
+
+
+    // Sushant KC: Dijkstra using unit edge weights (one per connection).
+    // This preserves the assignment's minimum-connections objective.
+    void dijkstra(int start, vector<int>& distance, vector<int>& parent) const {
+        const int INF = numeric_limits<int>::max();
+        int n = static_cast<int>(buildingNames.size());
+        distance.assign(n, INF);
+        parent.assign(n, -1);
+        if (start < 0 || start >= n) return;
+
+        priority_queue<pair<int, int>, vector<pair<int, int>>,
+            greater<pair<int, int>>> pq;
+        distance[start] = 0;
+        pq.push({ 0, start });
+        while (!pq.empty()) {
+            int currentDistance = pq.top().first;
+            int current = pq.top().second;
+            pq.pop();
+            if (currentDistance != distance[current]) continue;
+            for (int neighbor : graph[current]) {
+                int candidate = currentDistance + 1;
+                if (candidate < distance[neighbor]) {
+                    distance[neighbor] = candidate;
+                    parent[neighbor] = current;
+                    pq.push({ candidate, neighbor });
+                }
+            }
+        }
+    }
+
+    // Rebuild the path from start to destination using Dijkstra parents.
+    vector<int> shortestPath(int start, int destination) const {
+        vector<int> distance, parent, path;
+        if (start < 0 || destination < 0 ||
+            start >= static_cast<int>(buildingNames.size()) ||
+            destination >= static_cast<int>(buildingNames.size())) return path;
+        dijkstra(start, distance, parent);
+        if (distance[destination] == numeric_limits<int>::max()) return path;
+        for (int at = destination; at != -1; at = parent[at]) {
+            path.push_back(at);
+        }
+        reverse(path.begin(), path.end());
+        return path;
+    }
+
+    // Sushant KC: Question 2. Compare A->B->C->D with A->C->B->D.
+    // Locations B and C may be visited in either order.
+    void showShortestPathThroughTwoStops(const string& startName,
+        const string& stopBName,
+        const string& stopCName,
+        const string& destinationName) const {
+        int a = findBuilding(startName);
+        int b = findBuilding(stopBName);
+        int c = findBuilding(stopCName);
+        int d = findBuilding(destinationName);
+        if (a == -1 || b == -1 || c == -1 || d == -1) {
+            cout << "Building not found:";
+            if (a == -1) cout << " " << startName;
+            if (b == -1) cout << " " << stopBName;
+            if (c == -1) cout << " " << stopCName;
+            if (d == -1) cout << " " << destinationName;
+            cout << endl;
+            return;
+        }
+        auto makeRoute = [this](const vector<int>& stops) {
+            vector<int> result;
+            for (size_t i = 1; i < stops.size(); ++i) {
+                vector<int> segment = shortestPath(stops[i - 1], stops[i]);
+                if (segment.empty()) return vector<int>{};
+                if (result.empty()) result = segment;
+                else result.insert(result.end(), segment.begin() + 1, segment.end());
+            }
+            return result;
+            };
+        vector<int> first = makeRoute({ a, b, c, d });
+        vector<int> second = makeRoute({ a, c, b, d });
+        if (first.empty() && second.empty()) {
+            cout << "No route exists through both required stops." << endl;
+            return;
+        }
+        // On a tie, prefer the order B then C.
+        const vector<int>& best = (first.empty() ||
+            (!second.empty() && second.size() < first.size())) ? second : first;
+        cout << "Shortest route through " << stopBName << " and " << stopCName << ":" << endl;
+        for (size_t i = 0; i < best.size(); ++i) {
+            if (i) cout << " -> ";
+            cout << buildingNames[best[i]];
+        }
+        cout << endl << "Total connections: " << (best.size() - 1) << endl;
+    }
+
+    //Q3 Visiting every building reachable from start and return to start
+    void showShortestRoundTrip(const string& startName) const {
+        int start = findBuilding(startName);
+
+        if (start == -1) {
+            cout << "Building not found: " << startName << endl;
+            return;
+        }
+
+        vector<int> distance, parent;
+        bfs(start, distance, parent);
+
+        //collecting all reachable buildings except the starting building
+        vector<int> reachable;
+        for (int i = 0; i < buildingNames.size(); i++) {
+            if (distance[i] != -1 && i != start) {
+                reachable.push_back(i);
+            }
+        }
+
+        int count = reachable.size();
+
+        vector<vector<int>> between(count, vector<int>(count));
+
+        for (int i = 0; i < count; i++) {
+            vector<int> legDistance;
+            vector<int> legParent;
+
+            bfs(reachable[i], legDistance, legParent);
+
+            for (int j = 0; j < count; j++) {
+                between[i][j] = legDistance[reachable[j]];
+            }
+        }
+
+        if (count == 0) {
+            cout << "Round Trip: " << startName << endl;
+            cout << "Total connections: 0" << endl;
+            return;
+        }
+
+        //using exact bitmask search for our small graph
+        if (count > 20) {
+            cout << "Too many reachable buildings for this exact method." << endl;
+            return;
+        }
+
+        const int INF = 100000000;
+        int numberOfSubsets = 1;
+
+        for (int i = 0; i < count; i++) {
+            numberOfSubsets = numberOfSubsets * 2;
+        }
+
+        vector<vector<int>> cost(numberOfSubsets, vector<int>(count, INF));
+        vector<vector<int>> previous(numberOfSubsets, vector<int>(count, -1));
+
+        //cost to travel from start to each possible first building
+        for (int i = 0; i < count; i++) {
+            cost[1 << i][i] = distance[reachable[i]];
+        }
+
+        // Try every order for visiting the reachable buildings.
+        for (int subset = 1; subset < numberOfSubsets; subset++) {
+            for (int last = 0; last < count; last++) {
+                if (!(subset & (1 << last)) || cost[subset][last] == INF) {
+                    continue;
+                }
+
+                for (int next = 0; next < count; next++) {
+                    if (subset & (1 << next)) {
+                        continue;
+                    }
+
+                    int newSubset = subset | (1 << next);
+                    int newCost = cost[subset][last] + between[last][next];
+
+                    if (newCost < cost[newSubset][next]) {
+                        cost[newSubset][next] = newCost;
+                        previous[newSubset][next] = last;
+                    }
+                }
+            }
+        }
+
+        // Add the trip back to the starting building.
+        int allVisited = numberOfSubsets - 1;
+        int lastBuilding = -1;
+        int bestCost = INF;
+
+        for (int last = 0; last < count; last++) {
+            int totalCost = cost[allVisited][last] + distance[reachable[last]];
+
+            if (totalCost < bestCost) {
+                bestCost = totalCost;
+                lastBuilding = last;
+            }
+        }
+
+        // Reconstruct the order in which buildings are visited.
+        vector<int> visitOrder;
+        int subset = allVisited;
+        int last = lastBuilding;
+
+        while (last != -1) {
+            visitOrder.push_back(reachable[last]);
+
+            int earlier = previous[subset][last];
+            subset = subset ^ (1 << last);
+            last = earlier;
+        }
+
+        reverse(visitOrder.begin(), visitOrder.end());
+
+        // Join shortest paths between the buildings in the chosen order.
+        vector<int> route;
+        route.push_back(start);
+        int current = start;
+
+        for (int next : visitOrder) {
+            vector<int> segment = shortestPath(current, next);
+
+            for (int i = 1; i < segment.size(); i++) {
+                route.push_back(segment[i]);
+            }
+
+            current = next;
+        }
+
+        vector<int> returnPath = shortestPath(current, start);
+        for (int i = 1; i < returnPath.size(); i++) {
+            route.push_back(returnPath[i]);
+        }
+
+        cout << "Shortest round trip starting at " << startName << ":" << endl;
+        for (int i = 0; i < route.size(); i++) {
+            if (i > 0) {
+                cout << " -> ";
+            }
+            cout << buildingNames[route[i]];
+        }
+        cout << endl;
+        cout << "Total connections: " << bestCost << endl;
+    }
+
+
+    // Question 4: Find the different meeting building minimizing total connections
+    void showMeetingPoint(string nameA, string nameB, string nameC) const {
+        int a = findBuilding(nameA);
+        int b = findBuilding(nameB);
+        int c = findBuilding(nameC);
+
+        if (a == -1 || b == -1 || c == -1) {
+            cout << "One or more starting buildings were not found." << endl;
+            return;
+        }
+
+        vector<int> distanceA, parentA;
+        vector<int> distanceB, parentB;
+        vector<int> distanceC, parentC;
+
+        bfs(a, distanceA, parentA);
+        bfs(b, distanceB, parentB);
+        bfs(c, distanceC, parentC);
+
+        int meeting = -1;
+        int bestTotal = 1000000000;
+
+        for (int i = 0; i < buildingNames.size(); i++) {
+            // The meeting building must be different from all three starts.
+            if (i == a || i == b || i == c) {
+                continue;
+            }
+
+            // All three students must be able to reach the candidate.
+            if (distanceA[i] == -1 ||
+                distanceB[i] == -1 ||
+                distanceC[i] == -1) {
+                continue;
+            }
+
+            int total = distanceA[i] + distanceB[i] + distanceC[i];
+
+            if (total < bestTotal) {
+                bestTotal = total;
+                meeting = i;
+            }
+        }
+
+        if (meeting == -1) {
+            cout << "No meeting location is reachable by all three students."
+                << endl;
+            return;
+        }
+
+        cout << "Meeting location: " << buildingNames[meeting] << endl;
+        cout << "Total connections: " << bestTotal << endl;
+
+        // Print each route by following the BFS parent links backward.
+        vector<int> routeA;
+        for (int current = meeting; current != -1; current = parentA[current]) {
+            routeA.push_back(current);
+        }
+        reverse(routeA.begin(), routeA.end());
+
+        vector<int> routeB;
+        for (int current = meeting; current != -1; current = parentB[current]) {
+            routeB.push_back(current);
+        }
+        reverse(routeB.begin(), routeB.end());
+
+        vector<int> routeC;
+        for (int current = meeting; current != -1; current = parentC[current]) {
+            routeC.push_back(current);
+        }
+        reverse(routeC.begin(), routeC.end());
+
+        cout << nameA << "'s route: ";
+        for (int i = 0; i < routeA.size(); i++) {
+            if (i > 0) {
+                cout << " -> ";
+            }
+            cout << buildingNames[routeA[i]];
+        }
+        cout << endl;
+
+        cout << nameB << "'s route: ";
+        for (int i = 0; i < routeB.size(); i++) {
+            if (i > 0) {
+                cout << " -> ";
+            }
+            cout << buildingNames[routeB[i]];
+        }
+        cout << endl;
+
+        cout << nameC << "'s route: ";
+        for (int i = 0; i < routeC.size(); i++) {
+            if (i > 0) {
+                cout << " -> ";
+            }
+            cout << buildingNames[routeC[i]];
+        }
+        cout << endl;
+    }
+
+    void showGraph() const {
+        cout << "Campus Graph" << endl;
+        cout << "------------" << endl;
+
+        for (int i = 0; i < buildingNames.size(); i++) {
+            cout << i << ". " << buildingNames[i] << ": ";
+
+            for (int j = 0; j < graph[i].size(); j++) {
+                int neighbor = graph[i][j];
+                cout << buildingNames[neighbor];
+
+                if (j < graph[i].size() - 1) {
+                    cout << ", ";
+                }
+            }
+
+            cout << endl;
+        }
+    }
+
+    int numberOfBuildings() const {
+        return buildingNames.size();
+    }
+
+    string getBuildingName(int index) const {
+        if (index < 0 || index >= buildingNames.size()) {
+            return "";
+        }
+
+        return buildingNames[index];
+    }
+
+};
+
+int main() {
+    CampusGraph campus;
+
+    if (!campus.loadFromFile("college_map.txt")) {
+        return 1;
+    }
+
+    cout << "========================================\n";
+    cout << "       UNT CAMPUS NAVIGATION PROJECT\n";
+    cout << "========================================\n";
+    cout << "Buildings loaded: " << campus.numberOfBuildings() << "\n\n";
+
+    cout << "CAMPUS GRAPH\n";
+    cout << "------------\n";
+    campus.showGraph();
+
+    cout << "\n========================================\n";
+    cout << "RAHUL: GRAPH SETUP AND BFS REACHABILITY\n";
+    cout << "========================================\n";
+
+    campus.showReachableBuildings("Willis_Library", 2);
+
+    vector<int> distance;
+    vector<int> parent;
+    int willis = campus.findBuilding("Willis_Library");
+    int unionBuilding = campus.findBuilding("University_Union");
+
+    campus.bfs(willis, distance, parent);
+
+    if (unionBuilding != -1) {
+        cout << "\nShortest distance from Willis_Library to "
+            << "University_Union: "
+            << distance[unionBuilding] << " connection(s)\n";
+    }
+
+    cout << "\nInvalid building test:\n";
+    campus.showReachableBuildings("Not_A_Building", 2);
+
+    cout << "\n========================================\n";
+    cout << "SUSHANT: QUESTION 2 - ROUTE THROUGH TWO STOPS\n";
+    cout << "========================================\n";
+
+    campus.showShortestPathThroughTwoStops(
+        "Willis_Library",
+        "Music_Building",
+        "Chemistry_Building",
+        "Science_Research_Building"
+    );
+
+    cout << "\nAlternate stop-order example:\n";
+    campus.showShortestPathThroughTwoStops(
+        "Art_Building",
+        "Sage_Hall",
+        "Physics_Building",
+        "Sycamore_Hall"
+    );
+
+    cout << "\n========================================\n";
+    cout << "RANJAN: QUESTION 3 - SHORTEST ROUND TRIP\n";
+    cout << "========================================\n";
+
+    campus.showShortestRoundTrip("University_Union");
+
+    cout << "\n========================================\n";
+    cout << "RANJAN: QUESTION 4 - BEST MEETING LOCATION\n";
+    cout << "========================================\n";
+
+    cout << "Starting locations: Willis_Library, Chemistry_Building, "
+        << "Art_Building\n";
+
+    campus.showMeetingPoint(
+        "Willis_Library",
+        "Chemistry_Building",
+        "Art_Building"
+    );
+
+    return 0;
+}
