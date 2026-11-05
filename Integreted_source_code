@@ -194,6 +194,52 @@ public:
         }
     }
 
+    void showShortestRouteUnderLimit(const string& startName,
+                                 const string& destinationName,
+                                 int limit) const {
+    int start = findBuilding(startName);
+    int destination = findBuilding(destinationName);
+
+    if (start == -1 || destination == -1) {
+        cout << "Building not found: ";
+        if (start == -1) cout << startName << " ";
+        if (destination == -1) cout << destinationName;
+        cout << endl;
+        return;
+    }
+
+    if (limit <= 0) {
+        cout << "No route with fewer than " << limit
+             << " connections exists." << endl;
+        return;
+    }
+
+    vector<int> distance;
+    vector<int> parent;
+    bfs(start, distance, parent);
+
+    if (distance[destination] == -1 || distance[destination] >= limit) {
+        cout << "No route from " << startName << " to " << destinationName
+             << " with fewer than " << limit << " connections exists." << endl;
+        return;
+    }
+
+    vector<int> path;
+    for (int current = destination; current != -1; current = parent[current]) {
+        path.push_back(current);
+    }
+    reverse(path.begin(), path.end());
+
+    cout << "Shortest route from " << startName << " to " << destinationName
+         << " using fewer than " << limit << " connections:" << endl;
+
+    for (int i = 0; i < static_cast<int>(path.size()); i++) {
+        if (i > 0) cout << " -> ";
+        cout << buildingNames[path[i]];
+    }
+
+    cout << "\nTotal connections: " << distance[destination] << endl;
+}
 
     // Sushant KC: Dijkstra using unit edge weights (one per connection).
     // This preserves the assignment's minimum-connections objective.
@@ -285,7 +331,7 @@ public:
         cout << endl << "Total connections: " << (best.size() - 1) << endl;
     }
 
-    //Q3 Visiting every building reachable from start and return to start
+    //Ranjan's Q3 Visiting every building reachable from start and return to start
     void showShortestRoundTrip(const string& startName) const {
         int start = findBuilding(startName);
 
@@ -306,6 +352,10 @@ public:
         }
 
         int count = reachable.size();
+        if (count > 20) {
+            cout << "Too many reachable buildings for this exact method." << endl;
+            return;
+        }
 
         vector<vector<int>> between(count, vector<int>(count));
 
@@ -323,12 +373,6 @@ public:
         if (count == 0) {
             cout << "Round Trip: " << startName << endl;
             cout << "Total connections: 0" << endl;
-            return;
-        }
-
-        //using exact bitmask search for our small graph
-        if (count > 20) {
-            cout << "Too many reachable buildings for this exact method." << endl;
             return;
         }
 
@@ -531,9 +575,7 @@ public:
     }
 
     void showGraph() const {
-        cout << "Campus Graph" << endl;
-        cout << "------------" << endl;
-
+        
         for (int i = 0; i < buildingNames.size(); i++) {
             cout << i << ". " << buildingNames[i] << ": ";
 
@@ -576,8 +618,9 @@ int main() {
     cout << "========================================\n";
     cout << "Buildings loaded: " << campus.numberOfBuildings() << "\n\n";
 
+    cout << "========================================\n";
     cout << "CAMPUS GRAPH\n";
-    cout << "------------\n";
+    cout << "========================================\n";
     campus.showGraph();
 
     cout << "\n========================================\n";
@@ -598,9 +641,11 @@ int main() {
             << "University_Union: "
             << distance[unionBuilding] << " connection(s)\n";
     }
-
-    cout << "\nInvalid building test:\n";
-    campus.showReachableBuildings("Not_A_Building", 2);
+    cout << "\n========================================\n";
+    cout << "\nQUESTION 1 - SHORTEST ROUTE UNDER A LIMIT\n";
+    cout << "\n========================================\n";
+    campus.showShortestRouteUnderLimit(
+        "Willis_Library", "Science_Research_Building", 5);
 
     cout << "\n========================================\n";
     cout << "SUSHANT: QUESTION 2 - ROUTE THROUGH TWO STOPS\n";
