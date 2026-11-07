@@ -7,30 +7,90 @@
 #include <vector>
 #include <queue>
 #include <algorithm>
-#include <functional>
-#include <limits>
 #include <utility>
 #include <string>
-#include <unordered_map>
 
 using namespace std;
+
+//using hash map  - maps building name to index
+class BuildingHashMap {
+private:
+    struct Entry {
+        string key;
+        int value;
+    };
+
+    vector<vector<Entry>> buckets;
+    int bucketCount;
+
+    // Simple polynomial (djb2-style) string hash.
+    int hashString(const string& s) const {
+        unsigned long h = 5381;
+        for (unsigned char c : s) {
+            h = h * 33 + c;
+        }
+        return static_cast<int>(h % static_cast<unsigned long>(bucketCount));
+    }
+
+public:
+    explicit BuildingHashMap(int capacity = 101) : bucketCount(capacity) {
+        buckets.resize(bucketCount);
+    }
+
+    bool contains(const string& key) const {
+        const vector<Entry>& bucket = buckets[hashString(key)];
+        for (const Entry& e : bucket) {
+            if (e.key == key) return true;
+        }
+        return false;
+    }
+
+    // Returns true and sets outValue if found; false otherwise.
+    bool get(const string& key, int& outValue) const {
+        const vector<Entry>& bucket = buckets[hashString(key)];
+        for (const Entry& e : bucket) {
+            if (e.key == key) {
+                outValue = e.value;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void insert(const string& key, int value) {
+        vector<Entry>& bucket = buckets[hashString(key)];
+        for (Entry& e : bucket) {
+            if (e.key == key) {
+                e.value = value;
+                return;
+            }
+        }
+        bucket.push_back({ key, value });
+    }
+
+    void clear() {
+        for (vector<Entry>& bucket : buckets) {
+            bucket.clear();
+        }
+    }
+};
 
 class CampusGraph {
 private:
     vector<string> buildingNames;
     vector<vector<int>> graph;
-    unordered_map<string, int> buildingIndex;
+    BuildingHashMap buildingIndex;
 
 public:
     bool addBuilding(string name) {
-        if (buildingIndex.find(name) != buildingIndex.end()) {
+        if (buildingIndex.contains(name)) {
             return false;
         }
 
         int index = buildingNames.size();
         buildingNames.push_back(name);
         graph.push_back(vector<int>());
-        buildingIndex[name] = index;
+        buildingIndex.insert(name, index);
 
         return true;
     }
@@ -56,13 +116,11 @@ public:
     }
 
     int findBuilding(string name) const {
-        auto found = buildingIndex.find(name);
-
-        if (found == buildingIndex.end()) {
+        int value;
+        if (!buildingIndex.get(name, value)) {
             return -1;
         }
-
-        return found->second;
+        return value;
     }
 
     bool loadFromFile(string fileName) {
@@ -195,89 +253,64 @@ public:
     }
 
     void showShortestRouteUnderLimit(const string& startName,
-                                 const string& destinationName,
-                                 int limit) const {
-    int start = findBuilding(startName);
-    int destination = findBuilding(destinationName);
+        const string& destinationName,
+        int limit) const {
+        int start = findBuilding(startName);
+        int destination = findBuilding(destinationName);
 
-    if (start == -1 || destination == -1) {
-        cout << "Building not found: ";
-        if (start == -1) cout << startName << " ";
-        if (destination == -1) cout << destinationName;
-        cout << endl;
-        return;
-    }
-
-    if (limit <= 0) {
-        cout << "No route with fewer than " << limit
-             << " connections exists." << endl;
-        return;
-    }
-
-    vector<int> distance;
-    vector<int> parent;
-    bfs(start, distance, parent);
-
-    if (distance[destination] == -1 || distance[destination] >= limit) {
-        cout << "No route from " << startName << " to " << destinationName
-             << " with fewer than " << limit << " connections exists." << endl;
-        return;
-    }
-
-    vector<int> path;
-    for (int current = destination; current != -1; current = parent[current]) {
-        path.push_back(current);
-    }
-    reverse(path.begin(), path.end());
-
-    cout << "Shortest route from " << startName << " to " << destinationName
-         << " using fewer than " << limit << " connections:" << endl;
-
-    for (int i = 0; i < static_cast<int>(path.size()); i++) {
-        if (i > 0) cout << " -> ";
-        cout << buildingNames[path[i]];
-    }
-
-    cout << "\nTotal connections: " << distance[destination] << endl;
-}
-
-    // Sushant KC: Dijkstra using unit edge weights (one per connection).
-    // This preserves the assignment's minimum-connections objective.
-    void dijkstra(int start, vector<int>& distance, vector<int>& parent) const {
-        const int INF = numeric_limits<int>::max();
-        int n = static_cast<int>(buildingNames.size());
-        distance.assign(n, INF);
-        parent.assign(n, -1);
-        if (start < 0 || start >= n) return;
-
-        priority_queue<pair<int, int>, vector<pair<int, int>>,
-            greater<pair<int, int>>> pq;
-        distance[start] = 0;
-        pq.push({ 0, start });
-        while (!pq.empty()) {
-            int currentDistance = pq.top().first;
-            int current = pq.top().second;
-            pq.pop();
-            if (currentDistance != distance[current]) continue;
-            for (int neighbor : graph[current]) {
-                int candidate = currentDistance + 1;
-                if (candidate < distance[neighbor]) {
-                    distance[neighbor] = candidate;
-                    parent[neighbor] = current;
-                    pq.push({ candidate, neighbor });
-                }
-            }
+        if (start == -1 || destination == -1) {
+            cout << "Building not found: ";
+            if (start == -1) cout << startName << " ";
+            if (destination == -1) cout << destinationName;
+            cout << endl;
+            return;
         }
+
+        if (limit <= 0) {
+            cout << "No route with fewer than " << limit
+                << " connections exists." << endl;
+            return;
+        }
+
+        vector<int> distance;
+        vector<int> parent;
+        bfs(start, distance, parent);
+
+        if (distance[destination] == -1 || distance[destination] >= limit) {
+            cout << "No route from " << startName << " to " << destinationName
+                << " with fewer than " << limit << " connections exists." << endl;
+            return;
+        }
+
+        vector<int> path;
+        for (int current = destination; current != -1; current = parent[current]) {
+            path.push_back(current);
+        }
+        reverse(path.begin(), path.end());
+
+        cout << "Shortest route from " << startName << " to " << destinationName
+            << " using fewer than " << limit << " connections:" << endl;
+
+        for (int i = 0; i < static_cast<int>(path.size()); i++) {
+            if (i > 0) cout << " -> ";
+            cout << buildingNames[path[i]];
+        }
+
+        cout << "\nTotal connections: " << distance[destination] << endl;
     }
 
-    // Rebuild the path from start to destination using Dijkstra parents.
+    // Sushant KC: shortest path between two buildings.
+    // All connections carry the same cost (one "connection"), so
+    // Dijkstra's algorithm reduces exactly to BFS here -- there's no
+    // need for a priority queue when every edge weight is 1. Reusing
+    // bfs() keeps this correct without relying on std::priority_queue.
     vector<int> shortestPath(int start, int destination) const {
         vector<int> distance, parent, path;
         if (start < 0 || destination < 0 ||
             start >= static_cast<int>(buildingNames.size()) ||
             destination >= static_cast<int>(buildingNames.size())) return path;
-        dijkstra(start, distance, parent);
-        if (distance[destination] == numeric_limits<int>::max()) return path;
+        bfs(start, distance, parent);
+        if (distance[destination] == -1) return path;
         for (int at = destination; at != -1; at = parent[at]) {
             path.push_back(at);
         }
@@ -575,7 +608,7 @@ public:
     }
 
     void showGraph() const {
-        
+
         for (int i = 0; i < buildingNames.size(); i++) {
             cout << i << ". " << buildingNames[i] << ": ";
 
