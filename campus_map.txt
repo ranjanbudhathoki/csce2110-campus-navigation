@@ -1,0 +1,63 @@
+BUILDINGS
+Willis_Library  
+Sycamore_Hall  
+University_Union  
+General_Academic_Building  
+Language_Building  
+Art_Building  
+Physics_Building  
+Sage_Hall  
+Life_Sciences_Complex  
+Chemistry_Building  
+Science_Research_Building  
+Business_Leadership_Building  
+Matthews_Hall  
+Wooten_Hall  
+Music_Building  
+Chestnut_Hall  
+Chilton_Hall  
+Administration_Building  
+Highland_Street_Garage  
+Union_Circle_Garage
+
+EDGES
+University_Union Willis_Library
+University_Union Administration_Building
+University_Union Life_Sciences_Complex
+University_Union Sycamore_Hall
+University_Union Sage_Hall
+University_Union Union_Circle_Garage
+University_Union Wooten_Hall
+University_Union Matthews_Hall
+University_Union Business_Leadership_Building
+Willis_Library Music_Building
+Willis_Library Administration_Building 
+Willis_Library Business_Leadership_Building 
+Administration_Building Music_Building
+Administration_Building Life_Sciences_Complex
+Music_Building Chilton_Hall
+Music_Building Life_Sciences_Complex
+Chilton_Hall Life_Sciences_Complex
+Chilton_Hall Chestnut_Hall
+Life_Sciences_Complex Chestnut_Hall
+Life_Sciences_Complex Chemistry_Building
+Life_Sciences_Complex General_Academic_Building
+Life_Sciences_Complex Sycamore_Hall
+Chestnut_Hall Chemistry_Building
+Chemistry_Building Science_Research_Building
+Science_Research_Building General_Academic_Building
+General_Academic_Building Sycamore_Hall
+General_Academic_Building Language_Building
+Language_Building Physics_Building
+Language_Building Art_Building
+Art_Building Physics_Building
+Art_Building Sage_Hall
+Art_Building Union_Circle_Garage
+Physics_Building Sycamore_Hall
+Physics_Building Sage_Hall
+Union_Circle_Garage Wooten_Hall
+Wooten_Hall Matthews_Hall
+Wooten_Hall Highland_Street_Garage
+Matthews_Hall Business_Leadership_Building
+Matthews_Hall Highland_Street_Garage
+Highland_Street_Garage Business_Leadership_Building
