@@ -60,7 +60,7 @@ Building_Name_2 Building_Name_3
 
 Buildings go under BUILDINGS, one per line, with underscores instead of spaces (like Willis_Library). Then under EDGES, each line is a pair of buildings that are directly connected. All connections are undirected and all count the same (just "1 connection," we don't factor in actual walking distance).
 
-Our college_map.txt has 20 UNT buildings and 39 connections based on the official UNT campus map.
+Our college_map.txt has 20 UNT buildings and 40 connections based on the official UNT campus map.
 
 ## How to test it
 
